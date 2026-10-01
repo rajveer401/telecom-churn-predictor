@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ChurnGuard | Telecom Customer Churn Predictor</title>
+    <meta name="description"
+        content="Predict which telecom customers are likely to churn, and see why, using a Logistic Regression model.">
+    <meta name="color-scheme" content="dark light">
+
+    <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%A1%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="bg-orb orb-1" aria-hidden="true"></div>
+    <div class="bg-orb orb-2" aria-hidden="true"></div>
+
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="/" aria-label="ChurnGuard home">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z" />
+                        <path d="M9 12l2 2 4-4" />
+                    </svg>
+                </span>
+                <span class="brand-name">Churn<span>Guard</span></span>
+            </a>
+            <div class="topbar-actions">
+                <span class="status-pill" id="status-pill" data-state="loading">
+                    <span class="dot" aria-hidden="true"></span>
+                    <span id="status-text">Connecting…</span>
+                </span>
+                <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle light and dark theme"
+                    title="Toggle theme">
+                    <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
+                    </svg>
+                    <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="4" />
+                        <path
+                            d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+            <p class="eyebrow">Telecom customer retention</p>
+            <h1>Know who is about to leave, <span class="grad">and why.</span></h1>
+            <p class="lead">Enter a customer's profile and the model scores their churn risk instantly. Change any input
+                to see how the risk moves.</p>
+
+            <div class="stats" id="stats" aria-label="Model performance">
+                <div class="stat"><span class="stat-value" id="stat-auc">–</span><span class="stat-label">Test
+                        ROC-AUC</span></div>
+                <div class="stat"><span class="stat-value" id="stat-recall">–</span><span class="stat-label">Churners
+                        caught</span></div>
+                <div class="stat"><span class="stat-value" id="stat-precision">–</span><span class="stat-label">Flag
+                        precision</span></div>
+                <div class="stat"><span class="stat-value" id="stat-threshold">–</span><span class="stat-label">Decision
+                        threshold</span></div>
+            </div>
+        </section>
+
+        <section class="layout">
+            <!-- ============ FORM ============ -->
+            <form id="churn-form" class="panel form-panel" autocomplete="off" novalidate>
+                <div class="panel-head">
+                    <div>
+                        <h2>Customer details</h2>
+                        <p class="muted small">Updates live as you change inputs.</p>
+                    </div>
+                </div>
+
+                <div class="presets-wrap">
+                    <span class="presets-label">Try an example</span>
+                    <div class="presets" id="presets" role="group" aria-label="Example customers"></div>
+                </div>
+
+                <div id="form-fields"></div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-ghost" id="reset-btn">Reset</button>
+                    <button type="submit" class="btn btn-primary" id="predict-btn">
+                        <span>Predict churn risk</span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- ============ RESULT ============ -->
+            <aside class="panel result-panel" id="result-panel" aria-live="polite" aria-label="Prediction result">
+                <div class="result-loading" id="result-loading">
+                    <div class="spinner" aria-hidden="true"></div>
+                    <p class="muted">Scoring customer…</p>
+                </div>
+
+                <div class="result-error" id="result-error" hidden>
+                    <div class="error-icon" aria-hidden="true">!</div>
+                    <h3>Couldn't get a prediction</h3>
+                    <p id="error-message" class="muted"></p>
+                    <button type="button" class="btn btn-ghost" id="retry-btn">Try again</button>
+                </div>
+
+                <div class="result-body" id="result-body" hidden>
+                    <div class="gauge-wrap">
+                        <svg id="gauge" viewBox="-12 -18 224 136" role="img" aria-label="Churn risk gauge">
+                            <defs>
+                                <linearGradient id="gaugeGradient" gradientUnits="userSpaceOnUse" x1="20" y1="0"
+                                    x2="180" y2="0">
+                                    <stop offset="0%" stop-color="#34d399" />
+                                    <stop offset="50%" stop-color="#fbbf24" />
+                                    <stop offset="100%" stop-color="#f87171" />
+                                </linearGradient>
+                            </defs>
+                            <path class="gauge-track" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <path class="gauge-value" id="gauge-value" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <line class="gauge-threshold" id="gauge-threshold" x1="0" y1="0" x2="0" y2="0" />
+                            <text class="gauge-tick-label" id="gauge-threshold-label" x="0" y="0"
+                                text-anchor="middle">threshold</text>
+                        </svg>
+                        <div class="gauge-center">
+                            <div class="score" id="score">0%</div>
+                            <div class="score-label">churn risk score</div>
+                        </div>
+                    </div>
+
+                    <div class="verdict" id="verdict" data-level="low">
+                        <span class="badge" id="verdict-badge">Likely to stay</span>
+                        <p id="verdict-text"></p>
+                    </div>
+
+                    <div class="threshold-box">
+                        <div class="threshold-head">
+                            <label for="threshold-slider">Decision threshold</label>
+                            <span class="threshold-value" id="threshold-value">0.29</span>
+                        </div>
+                        <input type="range" id="threshold-slider" min="0.05" max="0.95" step="0.01" value="0.29">
+                        <div class="threshold-foot">
+                            <span class="muted small">Lower = catch more churners, contact more people.</span>
+                            <button type="button" class="link-btn" id="threshold-reset">Reset to tuned</button>
+                        </div>
+                    </div>
+
+                    <div class="section-block">
+                        <h3>Why this score</h3>
+                        <ul class="drivers" id="drivers"></ul>
+                        <p class="footnote">
+                            Bars show each feature's push on this customer's score, measured against its baseline
+                            category (e.g. a month-to-month contract or "no add-on" shows no push). Correlated features,
+                            like monthly charges and add-on services, can show surprising signs.
+                        </p>
+                    </div>
+
+                    <div class="section-block" id="ideas-block" hidden>
+                        <h3>Retention ideas to test</h3>
+                        <ul class="ideas" id="ideas"></ul>
+                        <p class="footnote">These come from patterns in past data, which are associations, not proven
+                            causes. Test them before rolling out.</p>
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <section class="about" aria-labelledby="about-title">
+            <h2 id="about-title">How it works</h2>
+            <div class="about-grid">
+                <article class="about-card">
+                    <div class="about-num">1</div>
+                    <h3>A transparent model</h3>
+                    <p>A class-balanced Logistic Regression trained on the Telco customer churn dataset. It was picked
+                        on cross-validation, within noise of Random Forest and XGBoost on ROC-AUC, but far easier to
+                        explain.</p>
+                </article>
+                <article class="about-card">
+                    <div class="about-num">2</div>
+                    <h3>A business-tuned threshold</h3>
+                    <p>Missing a churner costs more than sending an unneeded offer, so the cutoff is lowered from 0.50
+                        to <strong id="about-threshold">0.29</strong> using assumed offer and customer-value costs.</p>
+                </article>
+                <article class="about-card">
+                    <div class="about-num">3</div>
+                    <h3>A score, not a promise</h3>
+                    <p>Because the model is class-balanced, the score ranks customers well but is not a literal
+                        probability. Use it to prioritise outreach, not to forecast exact churn rates.</p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Built with FastAPI, scikit-learn and vanilla JS. <a href="/docs" target="_blank" rel="noopener">API docs</a>
+        </p>
+    </footer>
+
+    <button type="button" class="mini-score" id="mini-score" data-level="low" hidden
+        aria-label="Jump to prediction result">
+        <span class="mini-dot" aria-hidden="true"></span>
+        <span id="mini-text">–</span>
+        <span class="mini-go" aria-hidden="true">View ›</span>
+    </button>
+
+    <script src="/static/script.js" defer></script>
+</body>
+
+</html>
